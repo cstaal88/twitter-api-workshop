@@ -1,0 +1,188 @@
+---
+title: "Using the Twitter API for Academic Research: A Brief Introduction"
+author: "Christian Staal Bruun Overgaard"
+date: "September 7, 2022"
+output: html_document
+---
+
+## Introduction: Getting started
+*Load packages*
+
+```{r}
+#install.packages("tidyverse") #you only need to install each package once
+library(tidyverse) #you need to load the packages each time you re-open R
+library(academictwitteR)
+```
+
+*Set bearer token*
+
+```{r}
+set_bearer()
+```
+
+## Collecting tweets and metadata
+
+*Collect tweets*
+
+```{r}
+tweets <- 
+  get_all_tweets(
+    query = "ukraine", #the word you're searching for
+    start_tweets = "2022-06-06T00:00:00Z",
+    end_tweets = "2022-06-06T10:00:00Z",
+    n = 201, #the max number of tweets you want to collect
+    data_path = "my_new_datapath" #for the sake of example (only needed for large queries)
+  )
+
+```
+
+*Saving the dataframe*
+
+```{r}
+#save(tweets,file="tweets_from_api_workshop.Rda") #run if you want to save the "tweets" object on your computer.
+```
+
+*Select relevant columns*
+
+```{r}
+mydata <- tweets |>
+  dplyr::select(id, text, created_at, starts_with("public_metrics"))
+
+head(mydata)
+```
+
+*Multiple words to search for*
+
+```{r}
+my_words <- c("ukraine", "putin", "zelensky")
+
+tweets2 <-
+  get_all_tweets(
+    query = my_words, #use vector of terms
+    start_tweets = "2022-06-06T00:00:00Z",
+    end_tweets = "2022-06-06T10:00:00Z",
+    n = 50
+  ) |>
+  dplyr::select(id, text, created_at, starts_with("public_metrics"))
+
+#tweets2$public_metrics
+```
+
+Specify more details using `build_query`
+
+```{r}
+my_query <- build_query(query = 
+                         my_words,
+                         lang = "en")
+
+tweets3 <-
+  get_all_tweets(query = my_query,
+    start_tweets = "2016-06-06T00:00:00Z",
+    end_tweets = "2022-08-06T10:00:00Z",
+    n = 50,
+    verbose = FALSE, #hide some output
+    is_retweet = FALSE, #exclude retweets
+    remove_promoted = TRUE, #discard sponsored content
+    has_geo = TRUE) |> #only show english content
+  dplyr::select(id, text, created_at, starts_with("public_metrics"))
+
+glimpse(tweets3)
+#head(tweets3) #another way of getting a quick glimpse of the data
+```
+
+For more info, see `?get_all_tweets`.
+
+## Counting the number of tweets that fit certain criteria
+
+*Count*
+
+```{r}
+count_feb_2022 <- count_all_tweets(my_words, "2022-02-01T00:00:00Z", "2022-03-01T00:00:00Z") #only one month
+
+#count_feb_2022
+value_feb_2022 <- round(sum(count_feb_2022$tweet_count)/(10^6), digits = 0)
+
+cat("2022:", value_feb_2022, "Million")
+```
+
+*Compare with Feb 2021*
+
+```{r}
+count_feb_2021 <- count_all_tweets(my_words, "2021-02-01T00:00:00Z", "2021-03-01T00:00:00Z") #only one month
+
+#count_feb_2022
+value_feb_2021 <- round(sum(count_feb_2021$tweet_count)/(10^6), digits = 0)
+
+cat("2021:", value_feb_2021, "Million")
+```
+
+
+*Bonus: Counting tweets from a longer period of time*
+
+```{r}
+count1 <- count_all_tweets(my_words, "2022-01-01T00:00:00Z", "2022-04-01T00:00:00Z")
+
+count2 <- count_all_tweets(my_words, "2022-04-01T00:00:00Z", "2022-06-1T00:00:00Z")
+
+count3 <- count_all_tweets(my_words, "2022-06-01T00:00:00Z", "2022-08-28T00:00:00Z")
+
+combined_count <- bind_rows(count1, count2, count3)
+
+value2022 <- round(sum(combined_count$tweet_count)/(10^6), digits = 0) # millions
+cat("2022:", value2022, "Million")
+```
+
+Let's see how that compares to the same period of 2021:
+
+```{r}
+count1 <- count_all_tweets(my_words, "2021-01-01T00:00:00Z", "2021-04-01T00:00:00Z", verbose = FALSE)
+
+count2 <- count_all_tweets(my_words, "2021-04-01T00:00:00Z", "2021-06-1T00:00:00Z", verbose = FALSE)
+count3 <- count_all_tweets(my_words, "2021-06-01T00:00:00Z", "2021-08-28T00:00:00Z", verbose = FALSE)
+
+combined_count2 <- bind_rows(count1, count2, count3)
+value2021 <- round(sum(combined_count2$tweet_count)/(10^6), digits = 0)
+cat("2021:", value2021, "Million")
+```
+
+
+## Tweets from specific users
+Let's look at the average number of Retweets for President Zelensky's tweets for 2022 and 2021.
+
+*2022*
+
+```{r}
+zelensky2022 <-
+  get_all_tweets(users = "ZelenskyyUa",
+    start_tweets = "2022-01-01T00:00:00Z",
+    end_tweets = "2022-08-28T10:00:00Z",
+    n = 1000
+  ) |>
+  dplyr::select(id, text, created_at, starts_with("public_metrics"))
+
+value2021 <- round(mean(zelensky2022$public_metrics$retweet_count), digits = 0)
+
+cat("2022:", value2021, "Retweets on average")
+```
+
+*2021*
+
+```{r}
+zelensky2021 <-
+  get_all_tweets(users = "ZelenskyyUa",
+    start_tweets = "2021-01-01T00:00:00Z",
+    end_tweets = "2021-08-28T10:00:00Z",
+    n = 1000
+  ) |>
+  dplyr::select(id, text, created_at, starts_with("public_metrics"))
+
+round(mean(zelensky2021$public_metrics$retweet_count), digits = 0)
+
+value2021 <- round(mean(zelensky2021$public_metrics$retweet_count), digits = 0)
+
+cat("2021:", value2021, "Retweets on average")
+```
+
+
+
+
